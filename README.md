@@ -1,4 +1,4 @@
-![header](images/head.png)
+![header](images/head.pdf)
 # TUNA(Target-aware Unified Network for Affinity prediction)
 
 ![main_fig](images/main_fig.png)
