@@ -203,8 +203,8 @@ elif args.data_name=='bindingdb':
     """Set a model."""
     model = Model(modelArgs)
     model.to(device)
-    # PATH = './RESULT/'+'model--' + filesave+'.pth'
-    PATH = '/NAS_Storage4/jaesuk/chem_esm_cont/src/RESULT/model--240821_fuse_ones.pth'
+    PATH = './weights/'+'model--' + filesave+'.pth'
+    
     model.load_state_dict(torch.load(PATH, map_location=device), strict=False)
 
     criterion = F.mse_loss
