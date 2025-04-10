@@ -3,4 +3,7 @@
 </p>
 
 # Target-aware Unified Network for Affinity prediction
-![main_fig](images/main_fig.png)
+<p align="center">
+  <img src="https://github.com/DMCB-GIST/TUNA/blob/main/images/main_fig.png" width="600" alt="main fig" />
+</p>
+
