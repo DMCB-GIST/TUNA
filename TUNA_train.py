@@ -34,10 +34,10 @@ from torch_geometric.data import Batch
 from scipy.stats import pearsonr
 import torch.nn.functional as F
 import torch.optim as optim
-from utils import *
-from dataset import PDBbindDataset, BindingDBDataset
-from models import Model
-from dataset import load_data, load_label
+from utils.utils import *
+from utils.dataset import PDBbindDataset, BindingDBDataset
+from utils.models import Model
+from utils.dataset import load_data, load_label
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
