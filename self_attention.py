@@ -90,7 +90,6 @@ class MultiHeadAttention(nn.Module):
         assert x.size() == orig_q_size
         return x
 
-# self.smi_attention_poc = EncoderLayer(128, 128, 0.1, 0.1, 2)  # 注意力机制
 # self.tdpoc_attention_tdlig = EncoderLayer(32, 64, 0.1, 0.1, 1)
 
 # smi_embed = self.smi_attention_poc(smi_embed, pkt_embed) #smi_emb : 150*128

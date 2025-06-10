@@ -12,7 +12,7 @@ from self_attention import EncoderLayer
 import esm
 
 class BiLSTM_(nn.Module):
-    def __init__(self, emb_dim, lstm_hid_dim, dropout, dim, batch_size):
+    def __init__(self, emb_dim, lstm_hid_dim, dropout, dim, batch_size, device):
         """
         Initializes parameters suggested in paper
 
@@ -25,27 +25,27 @@ class BiLSTM_(nn.Module):
         """
         super(BiLSTM_, self).__init__()
         
-        
+        self.device = device
         self.lstm = torch.nn.LSTM(emb_dim,lstm_hid_dim,2,batch_first=True,bidirectional=True,dropout=dropout) 
         self.linear = torch.nn.Linear(2*lstm_hid_dim,dim)
         self.hidden_state = self.init_hidden(lstm_hid_dim, batch_size)
         self.reset_parameters()
         self.leakyrelu = nn.LeakyReLU(0.1)
-
+        
     def reset_parameters(self) -> None:
         init.xavier_uniform_(self.linear.weight)
         init.zeros_(self.linear.bias)
     
     def init_hidden(self, lstm_hid_dim, batch_size):
-        hidden = torch.zeros(4, batch_size, lstm_hid_dim, requires_grad=True)
-        cell = torch.zeros(4, batch_size, lstm_hid_dim, requires_grad=True)
+        hidden = torch.zeros(4, batch_size, lstm_hid_dim, requires_grad=True).to(self.device)
+        cell = torch.zeros(4, batch_size, lstm_hid_dim, requires_grad=True).to(self.device)
         return (hidden,cell)
     
     def forward(self, com: Tensor) -> Tensor:
         
         
-        h0 = torch.zeros(4, com.size(0), 64)
-        c0 = torch.zeros(4, com.size(0), 64)
+        h0 = torch.zeros(4, com.size(0), 64).to(self.device)
+        c0 = torch.zeros(4, com.size(0), 64).to(self.device)
 
         outputs, hidden_state = self.lstm(com,(h0, c0))    
         outputs = self.leakyrelu(self.linear(outputs)) # [batch, 1000, 10]
@@ -53,7 +53,7 @@ class BiLSTM_(nn.Module):
         return outputs
 
 class BiLSTM(nn.Module):
-    def __init__(self, emb_dim, pro_rep_dim, lstm_hid_dim, dropout, dim, batch_size):
+    def __init__(self, emb_dim, pro_rep_dim, lstm_hid_dim, dropout, dim, batch_size, device):
         """
         Initializes parameters suggested in paper
 
@@ -65,26 +65,26 @@ class BiLSTM(nn.Module):
             batch_size  : {int} batch_size used for training
         """
         super(BiLSTM, self).__init__()
+        self.device = device
         self.embeddings = nn.Embedding(29, emb_dim)
         self.lstm = torch.nn.LSTM(pro_rep_dim, lstm_hid_dim, 2, batch_first=True, bidirectional=True, dropout=dropout) 
         self.linear = torch.nn.Linear(2*lstm_hid_dim, dim)
         self.hidden_state = self.init_hidden(lstm_hid_dim, batch_size)
         self.reset_parameters()
         self.leakyrelu = nn.LeakyReLU(0.1)
-
     def reset_parameters(self) -> None:
         init.xavier_uniform_(self.linear.weight)
         init.zeros_(self.linear.bias)
     
     def init_hidden(self, lstm_hid_dim, batch_szie):
-        hidden = torch.zeros(4, batch_szie, lstm_hid_dim, requires_grad=True)
-        cell = torch.zeros(4, batch_szie, lstm_hid_dim, requires_grad=True)
+        hidden = torch.zeros(4, batch_szie, lstm_hid_dim, requires_grad=True).to(self.device)
+        cell = torch.zeros(4, batch_szie, lstm_hid_dim, requires_grad=True).to(self.device)
         return (hidden,cell)
     
     def forward(self, pro: Tensor) -> Tensor:
         # seq_embed = self.embeddings(pro) 
-        h0 = torch.zeros(4, pro.size(0), 64)
-        c0 = torch.zeros(4, pro.size(0), 64)
+        h0 = torch.zeros(4, pro.size(0), 64).to(self.device)
+        c0 = torch.zeros(4, pro.size(0), 64).to(self.device)
 
         outputs, hidden_state = self.lstm(pro,(h0, c0))    
         outputs = self.leakyrelu(self.linear(outputs)) # [batch, 1000, 10]
@@ -184,7 +184,7 @@ class Fp32LayerNorm(nn.LayerNorm):
     
 ####### Chemformer Load ##########
 class chemF_args():
-    model_path='./example_scripts/saved_models/last.ckpt'
+    model_path='./molbart/models/last.ckpt'
     products_path='bindingdb_embedding.pickle'
     vocab_path=util_chemF.DEFAULT_VOCAB_PATH
     chem_token_start_idx=util_chemF.DEFAULT_CHEM_TOKEN_START
@@ -193,24 +193,26 @@ class chemF_args():
 class chemF:
     DEFAULT_NUM_BEAMS = 10
 
-    def __init__(self):
-
+    def __init__(self, device):
+        
+        self.device = device
         self.chemF_args = chemF_args()
         self.model = self.model_loader()
-
+        
     def model_loader(self): 
-        print("Building tokeniser...")
+        # print("Building tokeniser...")
         tokeniser = util_chemF.load_tokeniser(self.chemF_args.vocab_path, self.chemF_args.chem_token_start_idx)
-        print("Finished tokeniser.")
+        # print("Finished tokeniser.")
         
         sampler = DecodeSampler(tokeniser, util_chemF.DEFAULT_MAX_SEQ_LEN)
         pad_token_idx = tokeniser.vocab[tokeniser.pad_token]
 
-        print("Loading model...")
+        # print("Loading model...")
         model = util_chemF.load_bart_train(self.chemF_args, sampler)
+        model = model.to(self.device)
         model.num_beams = self.chemF_args.num_beams
         sampler.max_seq_len = model.max_seq_len
-        print("Finished model.")
+        # print("Finished model.")
 
         return model
 
@@ -222,22 +224,21 @@ class chemF:
     
     
 class Model(nn.Module):
-    def __init__(self, args, device):
+    def __init__(self, args):
         super(Model, self).__init__()
-        self.device = device
-        # chemF 인스턴스 생성
-        chemF_instance = chemF()
+        self.device = args['device']
+        chemF_instance = chemF(device=self.device)
         
-        self.chemF_enc = chemF_instance.load_enc().to(device)
+        self.chemF_enc = chemF_instance.load_enc()
         
-        self.diffusion = Diffusion.Diffusion(input_features=43, filter_num=args['emb_dim'], pad_mode='ones').to(device)
+        self.diffusion = Diffusion.Diffusion(input_features=43, filter_num=args['emb_dim'], pad_mode='ones').to(self.device)
         
-        
-        self.p_lstm = BiLSTM(emb_dim=args['emb_dim'], pro_rep_dim = args['pro_rep_dim'], lstm_hid_dim=args['lstm_hid_dim'], dropout=args['dropout'], dim=args['r'], batch_size=args['batch_size']).to(device)
-        self.pk_lstm = BiLSTM_(emb_dim=args['emb_dim'], lstm_hid_dim=args['lstm_hid_dim'], dropout=args['dropout'], dim=args['r'], batch_size=args['batch_size']).to(device)
+        # self.c_lstm = BiLSTM_(emb_dim=args['emb_dim'], lstm_hid_dim=args['lstm_hid_dim'], dropout=args['dropout'], dim=args['r'], batch_size=args['batch_size'], device=self.device)
+        self.p_lstm = BiLSTM(emb_dim=args['emb_dim'], pro_rep_dim = args['pro_rep_dim'], lstm_hid_dim=args['lstm_hid_dim'], dropout=args['dropout'], dim=args['r'], batch_size=args['batch_size'], device=self.device)
+        self.pk_lstm = BiLSTM_(emb_dim=args['emb_dim'], lstm_hid_dim=args['lstm_hid_dim'], dropout=args['dropout'], dim=args['r'], batch_size=args['batch_size'], device=self.device)
         
         self.pk_esm2, self.alphabet = esm.pretrained.esm2_t6_8M_UR50D()
-        self.pk_esm2.load_state_dict(torch.load("/NAS_Storage4/jaesuk/PDBbind/esm2_best_model.pt", map_location=device))
+        self.pk_esm2.load_state_dict(torch.load("/NAS_Storage4/jaesuk/PDBbind/esm2_best_model.pt", map_location=self.device))
         self.num_layers = 6
         self.pk_esm2.eval()
         for param in self.pk_esm2.parameters():
