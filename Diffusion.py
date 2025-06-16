@@ -169,7 +169,7 @@ class NodeBN(_BatchNorm):
                'affine={affine}'.format(**self.__dict__)
 
 
-def heat_kernel_approx(L, alpha=1.0, K=10):
+def heat_kernel_approx(L, alpha=1.0, K=8):
     result = torch.zeros_like(L)
     I = torch.eye(L.size(0), device=L.device)
     for k in range(K + 1):
@@ -191,6 +191,19 @@ def cal_laplacian(adj_t):
     
     return laplacian
 
+def compute_T(x_sm, adj, delta_loop=1.0):
+    # pdb.set_trace()
+    x_sim_diag = torch.diag(torch.matmul(x_sm, x_sm.T))
+    x_sm = torch.diag(x_sim_diag)
+    D = torch.diag(torch.sum(x_sm, dim=1))
+    T_numer = delta_loop * x_sm + adj
+    T_denom = delta_loop * x_sm + D
+    T_denom_inv = torch.linalg.inv(T_denom)
+    
+    T = torch.matmul(T_numer, T_denom_inv)
+    
+    return T
+    
 class DGraphConvBn(nn.Module):
     def __init__(self, in_channels, 
                  hidden_channels, 
@@ -226,13 +239,19 @@ class DGraphConvBn(nn.Module):
 
         laplacian = cal_laplacian(adj_t)
         
-        adj_t = heat_kernel_approx(laplacian)
+        diff_mat = heat_kernel_approx(laplacian)
         
-        reg_term = torch.trace(torch.matmul(torch.transpose(x, 0, 1), laplacian))
+        x_sm = torch.matmul(diff_mat, x)
 
+        trans = compute_T(x_sm, adj_t)
         
-        x = torch.matmul(adj_t, x) + reg_term
-
+        T_power = torch.eye(x.size(0), device=device)
+        adj_t = torch.zeros_like(adj_t)
+        
+        for t in range(self.diffusion_iterations+1):
+            adj_t += self.diffusion_weight * T_power
+            T_power = torch.matmul(T_power, trans)
+            
         return data
         
 
