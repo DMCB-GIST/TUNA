@@ -8,7 +8,7 @@ If you want to retrieve the protein sequence and ligand SMILES from the provided
 import numpy as np
 
 seq_dict = np.load('./F_AASeq.npy', allow_pickle=True)
-sequence = seq_dict.item()[pid]
+sequence = seq_dict.item()['pid']
 
 smi_dict = np.load('./F_AASMI.npy', allow_pickle=True)
-smiles = smi_dict.item()[cid]
+smiles = smi_dict.item()['cid']
